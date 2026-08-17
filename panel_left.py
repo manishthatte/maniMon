@@ -72,7 +72,7 @@ class PanelLeft(PanelWindow):
 
     # ── Build ────────────────────────────────────────────────────────────────
     def build(self):
-        self.title_bar("◈  MACHINE")
+        self.title_bar("◈  maniMon  ·  MACHINE")
 
         # 1. Clock + pressure ------------------------------------------------
         self.lbl("clock", mt=2)

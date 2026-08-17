@@ -61,7 +61,7 @@ class PanelRight(PanelWindow):
             'sysinfo', 'net', 'wan', 'sockets'}
 
     def build(self):
-        self.title_bar("▶  WORK", col=CYAN)
+        self.title_bar("▶  maniMon  ·  WORK", col=CYAN)
         self._attn_keys = {}
 
         # 1. Attention ---------------------------------------------------------
