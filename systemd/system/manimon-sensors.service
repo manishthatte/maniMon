@@ -1,0 +1,54 @@
+[Unit]
+# maniMon — privileged sensor sampler.
+# Reads the BMC (/dev/ipmi0), NVMe and SATA SMART, and the DIMM inventory, and
+# publishes them as world-readable JSON in /run/manimon-sensors/ so the desktop
+# panels can display them without ever running as root.
+#
+# Author: Manish Jagdish Thatte
+#
+# @INSTALL_DIR@ is substituted at install time. If the checkout lives on a
+# filesystem that is not mounted at early boot (a separate /home, for example),
+# RequiresMountsFor below keeps this unit from starting too soon. Timer-driven
+# services have no early-boot constraint, so pointing at a user directory is
+# safe here in a way it would not be for a sysctl or udev drop-in.
+Description=maniMon privileged sensor sample
+Documentation=https://github.com/manishthatte/maniMon
+After=local-fs.target
+RequiresMountsFor=@INSTALL_DIR@
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 @INSTALL_DIR@/sensord.py --once
+
+# Creates /run/manimon-sensors with mode 0755, so the script never has to mkdir
+# into /run itself (ProtectSystem=strict would forbid it anyway) and the
+# directory can never be left behind with the wrong ownership.
+#
+# RuntimeDirectoryPreserve=yes is ESSENTIAL for a Type=oneshot service, not a
+# refinement. The default is "no", which means systemd deletes the directory
+# when the service stops — and a oneshot stops the instant it finishes. The
+# sampler therefore wrote its JSON correctly, exited 0, and had every file
+# deleted underneath it, thirty seconds apart, forever. With "yes" the
+# directory survives until reboot, which is exactly the lifetime the data
+# should have: /run is tmpfs, so a reboot clears it anyway.
+RuntimeDirectory=manimon-sensors
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+
+# It needs root for /dev/ipmi0 and raw disk access, but nothing else. Give back
+# everything that is not required.
+NoNewPrivileges=yes
+ProtectHome=read-only
+ProtectSystem=strict
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=CAP_SYS_RAWIO CAP_SYS_ADMIN CAP_DAC_OVERRIDE
+
+# A hung ipmitool must never wedge the timer.
+TimeoutStartSec=60

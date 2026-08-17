@@ -1,0 +1,14 @@
+[Unit]
+Description=maniMon panel watchdog timer
+Documentation=file:@INSTALL_DIR@/watchdog.sh
+
+[Timer]
+# First check a minute after login, so it does not race the autostart entry
+# that normally launches the panels.
+OnStartupSec=60
+OnUnitActiveSec=60
+AccuracySec=10s
+Unit=manimon-watchdog.service
+
+[Install]
+WantedBy=timers.target

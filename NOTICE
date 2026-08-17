@@ -1,0 +1,53 @@
+maniMon — workstation monitor with persistent statistics
+© 2026 Manish Jagdish Thatte
+
+This product includes software developed by
+Manish Jagdish Thatte (manish@manitlab.org)
+at maniTLab, Nashik, Maharashtra, India.
+https://www.manitlab.org
+
+Licensed under the GNU Affero General Public License v3.0 or later
+(see LICENSE). A commercial licence is available for use where the
+AGPL is unsuitable — contact manish@manitlab.org.
+
+----------------------------------------------------------------------
+
+SCOPE
+
+maniMon is a system monitoring tool. It contains no part of, and
+discloses nothing about, the photonic-ternary hardware or software
+covered by the author's patent applications. It is published
+separately and independently of those works.
+
+----------------------------------------------------------------------
+
+HARDWARE INTERFACE NOTES
+
+The amdgpu gpu_metrics v1_3 structure layout in health.py was
+determined empirically from live sysfs output on a Radeon Pro W7900
+(RDNA 3, gfx1100), cross-checked field by field against independent
+hwmon readings. The throttler bit assignments follow the Linux kernel
+enum smu_throttler. Neither is a redistribution of kernel source.
+
+SMART attribute interpretations follow the conventions documented by
+the smartmontools project. Where a vendor's use of an attribute is
+ambiguous, maniMon publishes the raw counter rather than guessing —
+see README.md, "Honesty about units".
+
+----------------------------------------------------------------------
+
+THIRD-PARTY TOOLS INVOKED AT RUNTIME
+
+maniMon executes the following programs when present. None is bundled,
+modified, or redistributed; each remains under its own licence:
+
+  ipmitool      BSD          BMC sensor readings
+  smartmontools GPL-2.0+     SATA and SAS SMART
+  nvme-cli      GPL-2.0+     NVMe SMART
+  dmidecode     GPL-2.0+     DIMM inventory
+  git           GPL-2.0      repository status
+  systemctl     LGPL-2.1+    service status
+
+Python dependencies are the standard library plus PyGObject (LGPL-2.1+)
+for the GTK panels. The non-graphical components — collectors, sensors,
+metric store and run accounting — require no third-party Python packages.

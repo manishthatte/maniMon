@@ -1,0 +1,46 @@
+# maniMon configuration — TOML.
+# Save as ~/.config/manimon/config.toml. Every key is optional.
+#
+# © Manish Jagdish Thatte
+
+state_dir = "~/.local/state/manimon"
+
+[jobs]
+# Paths that mark an interpreter process as a job worth tracking.
+roots = ["~/work/simulations"]
+# Executables always treated as jobs (added to the built-in physics list).
+# bins = ["my_solver"]
+
+[repo]
+# A git working tree to show branch, dirty state and unpushed commits for.
+path = "~/work/project"
+
+[backups]
+log_dir = "~/work/tools"
+jobs = [
+  { log = "backup_main.log", label = "MAIN_DRIVE", stale_days = 7 },
+]
+
+[campaign]
+# A long study with a STATUS.md scoreboard and an output/ directory.
+# Leave root unset and the campaign section disappears from the panel.
+root   = "~/work/campaign"
+layers = ["L0", "L1", "L2"]
+
+[limits]
+gpu_junction = 85
+nvme_temp    = 70
+
+[panels]
+width     = 420
+theme     = "light"
+update_ms = 2000
+
+# Services worth a status dot: [label, canonical-unit, scope]
+services = [
+  ["smartd",  "smartmontools.service",  "system"],
+  ["sensors", "manimon-sensors.timer",  "system"],
+  ["cron",    "cron.service",           "system"],
+  ["network", "NetworkManager.service", "system"],
+]
+

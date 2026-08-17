@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.log
+.*.pid
+.start.lock
+seen.json
+*.png
