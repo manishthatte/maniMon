@@ -1,6 +1,7 @@
 # maniMon — a workstation monitor that keeps the numbers
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21987162.svg)](https://doi.org/10.5281/zenodo.21987162)
 
 Two docked GTK panels and a headless recorder for a Linux workstation that runs
 long jobs. It reads the sensors your machine already has — including several
