@@ -260,7 +260,10 @@ MODEL_WRITE_UNITS = {
 
 def _smart_read(dev, dtype):
     """One smartctl call. Returns the parsed JSON, or None."""
-    cmd = [SMARTCTL, '-A', '-H', '-j', '-n', 'standby']
+    # -i as well as -A/-H: model_name lives in the INFO section, and
+    # without it MODEL_WRITE_UNITS can never match — the override for a
+    # drive that misnames its write counter would silently never fire.
+    cmd = [SMARTCTL, '-i', '-A', '-H', '-j', '-n', 'standby']
     if dtype:
         cmd += ['-d', dtype]
     cmd.append(dev)
