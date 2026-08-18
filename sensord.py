@@ -242,19 +242,25 @@ WRITE_ATTR_IDS = (246, 241)
 # Per-model overrides for drives whose attribute name lies about its unit.
 # Only add an entry with the evidence written down.
 #
-#   PASCARI S1201K007T68 (the 7.68 TB SSD carrying /home) calls attribute 241
-#   "Total_LBAs_Written" and reports 5975. df says /home holds 1.5 TB of
-#   resident data, which is a hard floor on lifetime writes, and that floor
-#   eliminates every small unit:
-#       512 B LBAs   -> 3.06 MB   impossible, ~500000x below resident data
-#       32 MiB       -> 191 GB    impossible, below resident data
-#       GiB          -> 6.42 TB   consistent, ~0.8 drive-writes, and the drive
-#                                 independently reports SSD_Life_Left = 99%
-#   GiB is the only survivor. It cannot be told apart from GB (5.98 TB) by this
-#   argument — a 7% spread — so the figure is published as INFERRED and the
-#   panel marks it approximate rather than pretending to exactness.
+#   PASCARI S1201K007T68 calls attribute 241 "Total_LBAs_Written" and reports
+#   a count that is neither LBAs nor anything else the name suggests.
+#
+#   MEASURED, not inferred (18 Aug 2026): wrote exactly 8 GiB to the
+#   filesystem on this drive, then compared the counter across a SMART
+#   refresh. The counter advanced by 8, and 8 x 1 GiB = 8,589,934,592 bytes
+#   is exactly the probe size. /sys/block/sdc/stat recorded 8,645,955,584
+#   bytes over the same window, the 56 MB excess being ordinary background
+#   writes. The alternatives are excluded by margins nothing could explain:
+#       512 B LBA -> off by a factor of 2,110,829
+#       32 MiB    -> off by a factor of 32
+#       1 GB      -> 590 MB short of a measured 8 GiB write
+#   So the unit is a gibibyte, and the lifetime figure is real: 6002 GiB,
+#   about 6.4 TB, which sits correctly beside the drive's own
+#   SSD_Life_Left of 99% on a 7.68 TB SSD.
+#
+#   Reproduce with: write N GiB, wait for a SMART refresh, watch the delta.
 MODEL_WRITE_UNITS = {
-    'PASCARI S1201K007T68P029T2100': (241, 1024 ** 3, 'GiB (inferred)'),
+    'PASCARI S1201K007T68P029T2100': (241, 1024 ** 3, 'GiB (measured)'),
 }
 
 
@@ -321,7 +327,10 @@ def _smart_fields(d):
             _, mult, label = override
             rec['bytes_written'] = int(raw) * mult
             rec['writes_unit'] = label
-            rec['writes_inferred'] = True
+            # Only mark approximate when the override says so. A unit
+            # established by measurement is not an estimate, and the panel
+            # should not hedge it with a tilde.
+            rec['writes_inferred'] = 'inferred' in label.lower()
             break
         mult = WRITE_UNITS_BY_ID.get(aid, {}).get(name)
         if mult:

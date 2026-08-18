@@ -73,9 +73,17 @@ get "3 MB written in 3420 power-on hours", which the filesystem journal alone
 would exceed.
 
 So `sensord.py` publishes the raw counter and the attribute name, and derives
-bytes only when the unit is known or a per-model override records the evidence
-for an inference. The panel then shows `~6.4 TB` with a tilde, or `5,975?` with
-a question mark — never a confident wrong number.
+bytes only when the unit is known, or when a per-model override records the
+evidence. The panel shows `5,975?` with a question mark when the unit is
+unknown, and `~6.4 TB` with a tilde when it was inferred rather than
+established — never a confident wrong number.
+
+Where a unit can be settled, it is settled by measurement rather than
+argument. The override in `sensord.py` for one drive records exactly that:
+write a known 8 GiB, wait for a SMART refresh, watch the counter advance by
+8. That excludes 512-byte LBAs by a factor of two million, 32 MiB chunks by a
+factor of 32, and gigabytes by 590 MB against a measured 8 GiB write. Once
+measured, the figure stops being hedged.
 
 Attribute 194 gets the same treatment: its raw field packs
 `current | min<<16 | max<<32` on most drives, which is how monitors end up
