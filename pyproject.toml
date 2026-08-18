@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "manimon"
+version = "0.2.0"
+description = "A workstation monitor that keeps the numbers"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Manish Jagdish Thatte", email = "manish@manitlab.org" }]
+keywords = ["monitoring", "sensors", "smart", "amdgpu", "ipmi", "hpc", "workstation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: System Administrators",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Monitoring",
+]
+
+# No runtime dependencies, deliberately. Everything here reads /proc, /sys and
+# sqlite3 from the standard library. The panels additionally need PyGObject and
+# GTK 3, which on every supported distribution are system packages rather than
+# wheels — installing them from PyPI tends to produce a broken build against the
+# wrong GLib. See the panels extra, and prefer your package manager.
+dependencies = []
+
+[project.optional-dependencies]
+panels = ["PyGObject>=3.42"]
+dev = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/manishthatte/maniMon"
+Source = "https://github.com/manishthatte/maniMon"
+Issues = "https://github.com/manishthatte/maniMon/issues"
+
+[project.scripts]
+manimon = "manimon.cli:main"
+
+# Flat layout, deliberately, not src/. This is a tool people clone onto a box
+# and run; `python3 -m manimon` has to work straight from the checkout, on a
+# system Python with no pip and PEP 668 in force, against the distribution's
+# own PyGObject. A src/ layout would make the checkout unrunnable until
+# installed, which is exactly backwards for a monitor.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["manimon*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

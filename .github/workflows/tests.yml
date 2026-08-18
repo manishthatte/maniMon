@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 is the floor the package declares; 3.11 is the first with tomllib,
+        # so below it the TOML config path falls back to JSON and that fallback
+        # needs testing too.
+        python: ['3.9', '3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run the suite
+        # No install step and no dependencies, deliberately — the same command a
+        # user runs from a fresh clone. GTK is absent on the runner, which is
+        # the point: nothing outside manimon/ui may need it.
+        run: python -m unittest discover -s tests -t . -v
+      - name: The package must import with no display
+        run: python -c "import manimon, manimon.collect, manimon.store.metrics, manimon.doctor"
+      - name: The CLI must not need GTK
+        run: python -m manimon --help && python -m manimon config

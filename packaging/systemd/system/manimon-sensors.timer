@@ -1,0 +1,18 @@
+[Unit]
+# Fires the privileged sensor sample. 30 s matches the slowest thing the panel
+# needs promptly (chassis fan RPM); NVMe and SATA SMART are internally rate
+# limited by the sampler to 5 minutes, and the DIMM inventory is read once, so
+# a 30 s tick does NOT mean four subprocesses every 30 s.
+#
+# Author: Manish Jagdish Thatte
+Description=Sample privileged sensors for maniMon every 30s
+Documentation=https://github.com/manishthatte/maniMon
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=manimon-sensors.service
+
+[Install]
+WantedBy=timers.target

@@ -43,10 +43,14 @@ folded; temperatures and power take the **maximum**, because averaging a
 thermal peak away defeats the purpose of keeping history.
 
 ```
-python3 metrics.py --report          # p95, dated peaks, kWh, time-over-threshold
-python3 runs.py                      # what each job cost
-python3 config.py                    # resolved configuration and where it came from
+manimon report          # p95, dated peaks, kWh, time-over-threshold
+manimon runs            # what each job cost
+manimon doctor          # what is missing, and the command that fixes it
+manimon config          # resolved configuration and where each part came from
 ```
+
+Every subcommand is available as `python3 -m manimon <cmd>` straight from a
+checkout, with no install step — see [Install](#install).
 
 ## Per-run accounting, and what it refuses to claim
 
@@ -73,14 +77,14 @@ naming the attribute `Total_LBAs_Written`. Read one such drive as LBAs and you
 get "3 MB written in 3420 power-on hours", which the filesystem journal alone
 would exceed.
 
-So `sensord.py` publishes the raw counter and the attribute name, and derives
+So the sampler publishes the raw counter and the attribute name, and derives
 bytes only when the unit is known, or when a per-model override records the
 evidence. The panel shows `5,975?` with a question mark when the unit is
 unknown, and `~6.4 TB` with a tilde when it was inferred rather than
 established — never a confident wrong number.
 
 Where a unit can be settled, it is settled by measurement rather than
-argument. The override in `sensord.py` for one drive records exactly that:
+argument. The override in `manimon/sensors/daemon.py` for one drive records exactly that:
 write a known 8 GiB, wait for a SMART refresh, watch the counter advance by
 8. That excludes 512-byte LBAs by a factor of two million, 32 MiB chunks by a
 factor of 32, and gigabytes by 590 MB against a measured 8 GiB write. Once
@@ -92,9 +96,11 @@ reporting a disk at 210 billion degrees.
 
 ## Privilege
 
-The panels never run as root. One small script (`sensord.py`) runs as root on a
-30-second timer and writes world-readable JSON into a tmpfs directory; the
-panels read files. The whole privileged surface is one auditable file.
+The panels never run as root. One module (`manimon/sensors/daemon.py`) runs as
+root on a 30-second timer and writes world-readable JSON into a tmpfs
+directory; the panels read files. The whole privileged surface is one auditable
+file, and `manimon/sensors/published.py` is the only thing that reads its
+output.
 
 ## Install
 
@@ -102,10 +108,21 @@ panels read files. The whole privileged surface is one auditable file.
 git clone https://github.com/manishthatte/maniMon
 cd maniMon
 
-python3 config.py --sample > ~/.config/manimon/config.toml   # optional
-bash install_user_services.sh                                # recorder + watchdog, no sudo
-sudo bash install_system_sensors.sh                          # BMC / SMART / DIMM sampler
-bash start.sh                                                # the panels
+python3 -m manimon doctor                                    # what is present, what is not
+python3 -m manimon config --sample > ~/.config/manimon/config.toml   # optional
+bash packaging/install_user_services.sh                      # recorder + watchdog, no sudo
+sudo bash packaging/install_system_sensors.sh                # BMC / SMART / DIMM sampler
+python3 -m manimon panels start                              # the panels
+```
+
+No install step is needed: the package sits at the top of the checkout, so
+`python3 -m manimon` works immediately on a system Python with PEP 668 in
+force, against your distribution's own PyGObject. If you would rather have a
+`manimon` on `$PATH`:
+
+```bash
+pipx install .          # or: pip install --user .
+manimon doctor
 ```
 
 Nothing is required. With no config at all it still shows CPU, memory, GPU,
@@ -116,7 +133,8 @@ than no section.
 Requirements: Python 3.9+ (3.11+ for TOML config), GTK 3 via PyGObject for the
 panels. `ipmitool`, `smartmontools`, `nvme-cli` and `dmidecode` are each
 optional — whatever is missing is reported as missing rather than shown as
-zero. `python3 sensord.py --preflight` says what is available.
+zero. `manimon doctor` says what is available and what each missing piece
+would have given you.
 
 ## Theme
 
@@ -128,9 +146,60 @@ theme" light palette measured ΔE 3.0 under deuteranopia, i.e. indistinguishable
 and was rejected.
 
 ```bash
-python3 palette.py          # contrast + colour-vision report
-python3 preview_theme.py    # render a panel mockup to PNG, no X server needed
+manimon palette             # contrast + colour-vision report
+manimon preview out.png     # render a panel mockup to PNG, no X server needed
 ```
+
+## Layout
+
+```
+manimon/
+├── cli.py            one entry point:  manimon <command>
+├── config.py         site configuration, merged from TOML
+├── doctor.py         what is missing, and the command that fixes it
+├── util.py           file reads that cannot raise, and the formatters
+├── collect/          the readers, one module per subsystem
+│   ├── cpu · memory · disk · net · gpu
+│   ├── process · jobs · system · attention
+│   └── __init__      the facade: one tick, three refresh tiers
+├── sensors/          health · daemon (root) · published (unprivileged)
+├── store/            metrics (the time series) · runs (per-run accounting)
+└── ui/               palette · widgets · window · launcher
+    └── sections/     one module per panel section
+```
+
+Two rules the tests enforce, because both were violated before:
+
+- **No module over 700 lines.** The collection layer was a single 1,870-line
+  file doing ten unrelated jobs.
+- **Each panel section owns both halves of its job** — the widgets it creates
+  and the code that fills them. Those used to sit 150 lines apart, which is how
+  a widget can be created and never updated without anything noticing.
+
+Nothing imports GTK except the panel modules themselves, so `manimon report`
+works over SSH on a machine with no display. That is a test too.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -t .     # no dependencies
+python3 -m pytest                              # if you prefer pytest
+```
+
+The suite is standard-library `unittest` on purpose: this tool has no runtime
+dependencies and installs nothing, and a test suite that needs a pip install
+on a PEP 668 system is a test suite that does not get run.
+
+Every case is a regression, not a hypothetical. The famous ones:
+
+- a disk reporting **210,454,380,576 °C**, because attribute 194 packs three
+  values into one integer
+- **3 MB written** across 3,420 power-on hours, because attribute 241's unit is
+  vendor-defined
+- a recorder writing **precisely nothing** for a whole session, because sqlite3
+  binds a connection to its creating thread and the error was caught into a
+  field nobody read. That test asserts on the row count, not on the absence of
+  an exception — the old code did not crash, it silently stored nothing.
 
 ## Status
 

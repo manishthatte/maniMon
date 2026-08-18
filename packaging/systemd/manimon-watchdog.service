@@ -1,0 +1,26 @@
+[Unit]
+# maniMon — panel watchdog. The why is in manimon/ui/launcher.py:ensure().
+# Author: Manish Jagdish Thatte
+Description=maniMon panel watchdog
+Documentation=https://github.com/manishthatte/maniMon
+
+[Service]
+Type=oneshot
+Environment=PYTHONPATH=@INSTALL_DIR@
+ExecStart=/usr/bin/python3 -m manimon panels ensure
+Nice=10
+# Never let a wedged xprop hold the timer open.
+TimeoutStartSec=120
+
+# KillMode=process is what makes this watchdog work at all.
+#
+# A Type=oneshot service is finished the moment ExecStart returns, and with the
+# default KillMode=control-group systemd then kills everything left in the
+# service's cgroup — including the panels the watchdog just launched. Observed
+# directly: the log said "restart ok", start.sh printed both PIDs, and eight
+# seconds later neither process existed. The watchdog was reviving the panels
+# and then killing them, once a minute, forever.
+#
+# With KillMode=process only the main process is signalled, so the relaunched
+# panels outlive the watchdog run that started them.
+KillMode=process

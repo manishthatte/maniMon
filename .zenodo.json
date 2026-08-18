@@ -1,6 +1,6 @@
 {
   "title": "maniMon: a workstation monitor with persistent statistics and honest per-run cost accounting",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "upload_type": "software",
   "license": "AGPL-3.0-or-later",
   "access_right": "open",
