@@ -188,5 +188,55 @@ class NamesResolve(unittest.TestCase):
         self.assertEqual(problems, {})
 
 
+class ResourcesAreClosed(unittest.TestCase):
+    """
+    Nothing may open a file or a database and walk away from it.
+
+    The panels run for weeks and the readers are called on a ten-second tick,
+    so a descriptor leaked per call is a descriptor leaked eight and a half
+    thousand times a day. Two real ones lived here: `json.load(open(path))` in
+    the job readers, and store.Reader holding a SQLite handle with no close()
+    at all — the latter loud enough to raise ResourceWarning across the suite.
+    """
+
+    def test_every_open_is_managed(self):
+        """open() must be a `with` item, or have its result assigned and closed.
+
+        Bare `open(x).read()` and `json.load(open(x))` are the shapes that leak.
+        """
+        offenders = []
+        for path in MODULES:
+            tree = ast.parse(path.read_text())
+            managed = set()
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.With, ast.AsyncWith)):
+                    for item in node.items:
+                        managed.add(id(item.context_expr))
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Name)
+                        and node.func.id == 'open'
+                        and id(node) not in managed):
+                    offenders.append(f'{path.name}:{node.lineno}')
+        self.assertEqual(offenders, [])
+
+    def test_the_readers_can_be_closed(self):
+        """Both readers must own their handle: close(), and the with-protocol."""
+        from manimon.store.metrics import Reader
+        from manimon.store.runs import RunReader
+        for cls in (Reader, RunReader):
+            for attr in ('close', '__enter__', '__exit__', '__del__'):
+                self.assertTrue(callable(getattr(cls, attr, None)),
+                                f'{cls.__name__} is missing {attr}')
+
+    def test_closing_a_reader_twice_is_harmless(self):
+        """__del__ runs after an explicit close(); it must not raise."""
+        from manimon.store.metrics import Reader
+        r = Reader()
+        r.close()
+        r.close()
+        self.assertFalse(r.available)
+
+
 if __name__ == '__main__':
     unittest.main()

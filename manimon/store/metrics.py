@@ -362,6 +362,31 @@ class Reader:
     def available(self):
         return self._con is not None
 
+    # A Reader holds an open SQLite handle, so it owns a file descriptor and a
+    # page cache until it is collected. The panels build one and keep it for
+    # their lifetime, which is fine; every other caller builds one for a single
+    # question — `manimon info`, doctor, the run accounting — and used to drop
+    # it on the floor. That showed up as ResourceWarning: unclosed database
+    # across the test suite, and on a long-lived process it is a slow leak.
+    def close(self):
+        try:
+            if self._con is not None:
+                self._con.close()
+        except Exception:
+            pass
+        finally:
+            self._con = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+    def __del__(self):
+        self.close()
+
     def _rows(self, column, hours, window=None):
         """Every value of one column over the window, across all resolutions.
 
@@ -641,7 +666,8 @@ def _main():
         return record_loop()
     if '--info' in args:
         import json
-        print(json.dumps(Reader().info(), indent=2, default=str))
+        with Reader() as r:
+            print(json.dumps(r.info(), indent=2, default=str))
         return 0
     if '--report' in args or not args:
         hours = 24.0

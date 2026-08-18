@@ -110,10 +110,14 @@ cd maniMon
 
 python3 -m manimon doctor                                    # what is present, what is not
 python3 -m manimon config --sample > ~/.config/manimon/config.toml   # optional
-bash packaging/install_user_services.sh                      # recorder + watchdog, no sudo
+bash packaging/install_user_services.sh                      # recorder + panels, no sudo
 sudo bash packaging/install_system_sensors.sh                # BMC / SMART / DIMM sampler
-python3 -m manimon panels start                              # the panels
 ```
+
+That last step installs `manimon-panel@left` and `manimon-panel@right`, so the
+panels come up with your graphical session, restart if they die, and stop when
+you log out. To run them outside systemd instead — a bare X session, a nested
+server, or just to see the output — use `python3 -m manimon panels start`.
 
 No install step is needed: the package sits at the top of the checkout, so
 `python3 -m manimon` works immediately on a system Python with PEP 668 in

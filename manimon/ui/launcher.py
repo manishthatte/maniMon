@@ -41,7 +41,8 @@ def _alive(pid):
 def _read_pid(name):
     pf, _ = _paths(name)
     try:
-        pid = int(open(pf).read().strip())
+        with open(pf) as fh:
+            pid = int(fh.read().strip())
     except (OSError, ValueError):
         return None
     return pid if _alive(pid) else None
@@ -114,7 +115,8 @@ def start(side='both', quiet=False):
             proc = subprocess.Popen([sys.executable, '-m', mod], env=env,
                                     stdout=log, stderr=subprocess.STDOUT,
                                     stdin=subprocess.DEVNULL, start_new_session=True)
-        open(pf, 'w').write(str(proc.pid))
+        with open(pf, 'w') as fh:
+            fh.write(str(proc.pid))
         # A panel that dies on import leaves a pidfile pointing at a corpse,
         # which reads as "started" to anything that only checks the file.
         time.sleep(0.4)
@@ -165,7 +167,13 @@ def status(side='both', quiet=False):
 
 
 def ensure(side='both', quiet=False):
-    """Restart any panel that has died. This is the watchdog.
+    """Restart any panel that has died.
+
+    Under systemd this is not the supervision mechanism — manimon-panel@.service
+    has Restart=always and does the job properly. This stays for the machines
+    that have no systemd user manager, and for a cron entry or a manual check;
+    it is harmless where the units are in charge, because there is never
+    anything dead for it to find.
 
     The right panel died silently on 17 August 2026 and left a stale pidfile
     behind; nothing noticed and nothing restarted it. Liveness is therefore
@@ -197,6 +205,46 @@ def restart(side='both', quiet=False):
     return start(side, quiet=quiet)
 
 
+def exec_panel(side, wait=30.0):
+    """Become the panel process. This is what manimon-panel@.service runs.
+
+    Under systemd the panel must BE the service's main process, not a child of
+    it, so this resolves the display and then execv()s — the PID systemd is
+    tracking is the panel itself, its cgroup holds nothing else, and Restart=
+    sees the panel's own exit status.
+
+    That is the whole reason the supervision model changed. Panels used to be
+    spawned by a Type=oneshot watchdog, and a child does not leave its parent's
+    cgroup just because it called setsid(): both panels stayed in the
+    watchdog's cgroup for as long as they lived. Systemd noticed every single
+    time the timer fired — "Found left-over process … in control group while
+    starting unit" plus "This usually indicates unclean termination of a
+    previous run, or service implementation deficiencies", twice per panel,
+    once a minute, about five and a half thousand journal lines a day. maniMon
+    then read its own noise back out of the journal and reported it on the
+    attention panel as errors needing attention. The monitor was manufacturing
+    the problem it was warning about.
+
+    Exits non-zero when there is no usable display, which under Restart=always
+    is a retry rather than a failure — and at logout the unit is stopped by
+    PartOf=graphical-session.target, so it does not spin.
+    """
+    if side not in PANELS:
+        print(f"unknown panel {side!r}; expected one of {', '.join(PANELS)}",
+              file=sys.stderr)
+        return 2
+    env = _resolve_display(dict(os.environ))
+    if not _display_ready(env, wait=wait):
+        print(f"No usable X display (DISPLAY={env.get('DISPLAY')} "
+              f"XAUTHORITY={env.get('XAUTHORITY')}) — not starting {side}.",
+              file=sys.stderr)
+        return 1
+    os.environ.update(env)
+    os.execv(sys.executable, [sys.executable, '-m', PANELS[side][0]])
+
+
 def launch(action='start', side='both'):
+    if action == 'exec':
+        return exec_panel(side)
     return {'start': start, 'stop': stop, 'status': status,
             'restart': restart, 'ensure': ensure}[action](side)

@@ -1,0 +1,61 @@
+[Unit]
+# maniMon — one docked panel. Instantiate as manimon-panel@left.service and
+# manimon-panel@right.service.
+#
+# Author: Manish Jagdish Thatte
+#
+# This replaces manimon-watchdog.service and its 60-second timer, which existed
+# only to restart panels that had died. systemd already does that, and doing it
+# this way removes the reason the watchdog was awkward in the first place.
+#
+# The watchdog was a Type=oneshot unit that spawned the panels as children. A
+# child does not leave its parent's cgroup by calling setsid(), so both panels
+# remained in the watchdog's cgroup for their whole lives. That forced
+# KillMode=process — without it systemd cleaned up the cgroup when the oneshot
+# finished and killed the panels it had just started, once a minute, forever —
+# and even with it systemd logged four complaints per timer firing about
+# left-over processes and "service implementation deficiencies". Roughly 5,700
+# journal lines a day, which maniMon then read back and reported to the user as
+# errors. The monitor was generating the fault it was warning about.
+#
+# One panel per unit fixes all of it: each panel is its own main process in its
+# own cgroup, Restart= watches the panel's real exit status, and `systemctl
+# --user status manimon-panel@left` says something true.
+Description=maniMon %i panel
+Documentation=https://github.com/manishthatte/maniMon
+
+# PartOf, so logging out stops the panels rather than leaving them to fail
+# against a display that no longer exists. After, so the first start does not
+# race the X server coming up.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# PYTHONPATH rather than a pip install: this has to work on a system Python
+# with PEP 668 in force, straight from a git checkout, with no venv.
+Environment=PYTHONPATH=@INSTALL_DIR@
+
+# `panels exec` resolves DISPLAY and XAUTHORITY, waits for the server to accept
+# a connection, and then execv()s the panel — so the process systemd tracks IS
+# the panel. The display discovery matters even though graphical-session.target
+# normally exports both: on a GNOME Wayland session the XWayland cookie is
+# $XDG_RUNTIME_DIR/.mutter-Xwaylandauth.XXXXXX with a suffix regenerated at
+# every login, so an imported value can be stale. See ui/launcher.py.
+ExecStart=/usr/bin/python3 -m manimon panels exec --side %i
+
+# A panel is a GUI nicety; physics gets the CPU first.
+Nice=5
+
+# Always come back, including after a clean exit — a panel that quits on its
+# own has still left the user without a panel. RestartSec covers the case where
+# the display is not ready yet: exec returns non-zero, systemd waits, retries.
+# At logout PartOf= stops the unit outright, so this cannot spin.
+Restart=always
+RestartSec=5
+
+# GTK exits on SIGTERM; nothing here needs a longer grace period.
+TimeoutStopSec=10
+
+[Install]
+WantedBy=graphical-session.target

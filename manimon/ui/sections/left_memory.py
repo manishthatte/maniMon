@@ -61,23 +61,41 @@ def refresh(p, s):
            kv("   swapio", f'{m["swapin_s"]+m["swapout_s"]:.0f}/s',
                W.CRIT if (m['swapin_s'] + m['swapout_s']) > 10 else WHITE))
     # ── Memory channels ──────────────────────────────────────────────────
-    # Half the slots are empty on a 12-channel part, so this machine reaches
-    # roughly a third of the bandwidth the CPU can address — and every DFT,
-    # GW and NEGF run here is bandwidth-bound. This row exists so the gap is
-    # visible, and so it can be seen closing when the RDIMMs arrive.
+    # Empty slots cost bandwidth, and every DFT, GW and NEGF run is
+    # bandwidth-bound. This row exists so the gap is visible, and so it can be
+    # seen closing when the RDIMMs arrive.
+    #
+    # The ceiling shown is the BOARD's — what filling its slots would give —
+    # because that is the one a purchase can reach. Showing the processor's
+    # instead claimed 461 GB/s on an eight-slot board, a figure no amount of
+    # memory could have achieved. The processor's appears after it, and only
+    # when [memory].cpu_channels says what it is.
     dm = s.get('dimms') or {}
     if dm.get('present'):
         empty = dm.get('empty', 0)
         col = W.WARN if empty else W.OK
-        gbs, cpu_max = dm.get('gbs'), dm.get('gbs_cpu_max')
-        frac = (f'  {gbs:.0f} of {cpu_max:.0f} GB/s'
-                if gbs and cpu_max else '')
+        gbs, board_max = dm.get('gbs'), dm.get('gbs_board_max')
+        cpu_max = dm.get('gbs_cpu_max')
+        # 420 px of panel does not fit both ceilings, so show the one that is
+        # actionable now. While slots are empty the board's is what a purchase
+        # buys. Once the board is full, the only remaining gap is the
+        # processor's channel count — which needs a different board, and is
+        # worth saying exactly then and not before.
+        board_full = not empty
+        cpu_bound = bool(board_full and cpu_max and board_max
+                         and cpu_max > board_max)
+        ceiling = cpu_max if cpu_bound else board_max
+        frac = f'  {gbs:.0f}/{ceiling:.0f} GB/s' if gbs and ceiling else ''
+        if cpu_bound:
+            frac += ' cpu-limited'
         p.L("mem_chan",
-               kv("channels", f'{dm["populated"]} of {dm["total_slots"]} slots',
+               kv("channels", f'{dm["populated"]}/{dm["total_slots"]} slots',
                    col) +
-               f'<span font="{FXS}" foreground="{DIM}">{frac}</span>' +
-               (f'<span font="{FXS}" foreground="{W.WARN}">   {empty} empty</span>'
-                if empty else ''))
+               # No "N empty" suffix: 4/8 already says four are free, and the
+               # slot count is drawn in the warning colour when any are. The
+               # duplicate was the one token that pushed this row past 420 px
+               # and got itself ellipsised.
+               f'<span font="{FXS}" foreground="{DIM}">{frac}</span>')
         p.vis("mem_chan", True)
     else:
         p.vis("mem_chan", False)

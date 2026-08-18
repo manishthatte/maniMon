@@ -27,7 +27,7 @@ import struct
 import sys
 import time
 
-from ..config import SENSOR_DIR
+from ..config import SENSOR_DIR, CPU_CHANNELS
 STALE_AFTER = 180.0          # seconds; the timer runs every 30 s
 
 
@@ -212,12 +212,17 @@ def dimms():
         'empty': total - populated,
         'mts': d.get('mts'),
         'gbs': d.get('gbs_theoretical'),
-        # The EPYC 9334 is a 12-channel part. The board only has 8 slots, so 8
-        # is the reachable ceiling here without a different board.
+        # What filling every slot on THIS board would give. Observed, not
+        # assumed: the slot count comes from dmidecode.
         'gbs_board_max': (round(total * d['mts'] * 8 / 1000.0, 1)
                           if d.get('mts') and total else None),
-        'gbs_cpu_max': (round(12 * d['mts'] * 8 / 1000.0, 1)
-                        if d.get('mts') else None),
+        # What the processor could address if the board had the slots for it.
+        # Only reported when the channel count has been configured — it is not
+        # discoverable, and inventing it produced a ceiling of 461 GB/s on an
+        # eight-slot board, which no memory purchase could ever have reached.
+        'cpu_channels': CPU_CHANNELS,
+        'gbs_cpu_max': (round(CPU_CHANNELS * d['mts'] * 8 / 1000.0, 1)
+                        if d.get('mts') and CPU_CHANNELS else None),
     }
 
 

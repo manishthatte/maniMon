@@ -83,14 +83,28 @@ class Collector:
                 self.recorder = None
 
     def _try(self, key, fn, default):
+        """Run one reader, substituting a default if it raises.
+
+        The failure is recorded in snap['_errors'][key], which the attention
+        engine turns into a visible item. That link did not exist until
+        19 Aug 2026: the field was written here from the start and read
+        absolutely nowhere, so a reader that threw on every tick left the panel
+        showing its default — an empty dict, a zero, a blank list — with no hint
+        that the number on screen had stopped meaning anything.
+
+        The entry is cleared again on the next success. Without that a single
+        transient error latches for the lifetime of the process, because
+        self.snap persists across ticks.
+        """
         if self.want is not None and key not in self.want:
             return
         try:
             self.snap[key] = fn()
         except Exception as e:
             self.snap.setdefault(key, default)
-            self.snap['_errors'] = self.snap.get('_errors', {})
-            self.snap['_errors'][key] = str(e)[:80]
+            self.snap.setdefault('_errors', {})[key] = str(e)[:80]
+        else:
+            self.snap.get('_errors', {}).pop(key, None)
 
     def tick(self, force_all=False):
         now = time.monotonic()
@@ -138,11 +152,18 @@ class Collector:
         self.snap['ts'] = time.time()
 
         if self.recorder is not None:
-            # Never let a database problem reach the UI thread.
+            # A database problem must not reach the UI thread — but it must not
+            # disappear either. Recording once failed for an entire session
+            # because a SQLite connection was bound to the wrong thread, every
+            # insert raised, and the exception went into a field nobody read;
+            # the dashboard looked healthy the whole time. It goes to the same
+            # place every other reader failure goes, so the panel shows it.
             try:
                 self.recorder.record(self.snap)
-            except Exception:
-                pass
+            except Exception as e:
+                self.snap.setdefault('_errors', {})['recorder'] = str(e)[:80]
+            else:
+                self.snap.get('_errors', {}).pop('recorder', None)
         return self.snap
 
 

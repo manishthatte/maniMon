@@ -190,6 +190,26 @@ class RunReader:
     def available(self):
         return self._con is not None
 
+    # Same ownership rule as metrics.Reader — see the note there.
+    def close(self):
+        try:
+            if self._con is not None:
+                self._con.close()
+        except Exception:
+            pass
+        finally:
+            self._con = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+    def __del__(self):
+        self.close()
+
     def list(self, days=7, sim_id=None, active_only=False, limit=50):
         if self._con is None:
             return []

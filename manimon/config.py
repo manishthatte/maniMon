@@ -113,6 +113,22 @@ DEFAULTS = {
         'disk_temp': 60,
     },
 
+    # ── Memory ──────────────────────────────────────────────────────────────
+    # How many memory channels the PROCESSOR can address.
+    #
+    # dmidecode reports the board's DIMM slots, and that is the ceiling you can
+    # reach by buying RDIMMs. It cannot report the processor's channel count,
+    # and there is no portable place to read it — so it is not guessed. Left
+    # unset, maniMon reports only the ceiling it can observe.
+    #
+    # Set it to also see what the board itself is giving up: EPYC 9004 is 12,
+    # Xeon Scalable 8, Threadripper Pro 8, desktop Ryzen and Core 2. A hardcoded
+    # 12 lived here until 19 Aug 2026 and reported a 461 GB/s ceiling on an
+    # eight-slot board, which no amount of memory could ever have reached.
+    'memory': {
+        'cpu_channels': None,
+    },
+
     # ── Panels ──────────────────────────────────────────────────────────────
     'panels': {
         'width': 420,
@@ -202,6 +218,7 @@ CAMPAIGN_ROOT = CFG['campaign'].get('root')
 LAYERS        = list(CFG['campaign'].get('layers') or [])
 VENVS         = [os.path.expanduser(v) for v in CFG.get('venvs', [])]
 LIMITS        = CFG['limits']
+CPU_CHANNELS  = CFG['memory'].get('cpu_channels')
 SENSOR_DIR    = CFG['sensors']['runtime_dir']
 PANEL_WIDTH   = CFG['panels']['width']
 UPDATE_MS     = CFG['panels']['update_ms']
@@ -240,6 +257,13 @@ layers = ["L0", "L1", "L2"]
 [limits]
 gpu_junction = 85
 nvme_temp    = 70
+
+[memory]
+# Your PROCESSOR's memory-channel count. The board's slot count is read from
+# dmidecode; this is not discoverable, so it is not guessed. Set it and the
+# panel also shows what the board is giving up against the CPU's capability.
+# EPYC 9004 = 12, Xeon Scalable = 8, Threadripper Pro = 8, Ryzen/Core = 2.
+# cpu_channels = 12
 
 [panels]
 width     = 420

@@ -59,6 +59,15 @@ def attention(snap):
         items.append({'key': key, 'sev': sev, 'icon': icon,
                       'text': text, 'ackable': ackable})
 
+    # A reader that is throwing. Everything downstream of it is showing a
+    # default — an empty list, a zero, last tick's value — and every one of
+    # those reads as ordinary data. This is the one failure a monitor must
+    # never keep to itself, so it outranks anything it might be hiding and
+    # cannot be acknowledged away: the fix is to repair the reader.
+    for key, msg in sorted((snap.get('_errors') or {}).items()):
+        add(f'collector:{key}', SEV_CRIT, '⚠',
+            f'{key} reader failing — {msg}', ackable=False)
+
     # Failed and finished simulations
     for r in snap.get('recent', []):
         stamp = int(r['mtime'])

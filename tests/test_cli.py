@@ -59,10 +59,15 @@ class Parsing(unittest.TestCase):
                    if isinstance(a, argparse._SubParsersAction))
         action = next(a for a in sub.choices['panels']._actions
                       if a.dest == 'action')
-        implemented = {'start', 'stop', 'status', 'restart', 'ensure'}
-        self.assertEqual(set(action.choices), implemented)
-        for name in implemented:
-            self.assertTrue(callable(getattr(launcher, name, None)), name)
+        # action name -> the launcher function it must reach. 'exec' cannot be
+        # a bare function name without shadowing the builtin, so it maps to
+        # exec_panel; launch() is what routes it.
+        implemented = {'start': 'start', 'stop': 'stop', 'status': 'status',
+                       'restart': 'restart', 'ensure': 'ensure',
+                       'exec': 'exec_panel'}
+        self.assertEqual(set(action.choices), set(implemented))
+        for name, fn in implemented.items():
+            self.assertTrue(callable(getattr(launcher, fn, None)), name)
 
     def test_an_unknown_flag_is_rejected_rather_than_ignored(self):
         with self.assertRaises(SystemExit):

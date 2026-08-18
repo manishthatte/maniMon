@@ -39,7 +39,8 @@ def _cmd_report(a):
 def _cmd_info(a):
     from .store.metrics import Reader
     import json
-    print(json.dumps(Reader().info(), indent=2, default=str))
+    with Reader() as r:
+        print(json.dumps(r.info(), indent=2, default=str))
     return 0
 
 
@@ -109,8 +110,9 @@ def build_parser():
 
     s = add('panels', _cmd_panels, 'start, stop or check the docked panels')
     s.add_argument('action', nargs='?', default='start',
-                   choices=['start', 'stop', 'restart', 'status', 'ensure'],
-                   help="'ensure' restarts only what has died — the watchdog")
+                   choices=['start', 'stop', 'restart', 'status', 'ensure', 'exec'],
+                   help="'ensure' restarts only what has died; 'exec' becomes "
+                        "the panel itself and is what the systemd unit runs")
     s.add_argument('--side', choices=['left', 'right', 'both'], default='both',
                    help='which panel to act on (default: both)')
 

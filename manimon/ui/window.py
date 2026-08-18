@@ -14,6 +14,15 @@ gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib  # noqa: F401 (re-exported for panels)
 
+# GTK derives WM_CLASS from argv[0], so without this the panels announce
+# themselves to the window manager as "left.py" and "right.py" — which is what
+# shows up in window rules, in `wmctrl -l`, and in anything a user might write
+# to position or exempt them. Set before any window is realized; afterwards it
+# has no effect, because WM_CLASS is written once at realize time.
+GLib.set_prgname('manimon')
+GLib.set_application_name('maniMon')
+Gdk.set_program_class('maniMon')
+
 # ── Shared config ─────────────────────────────────────────────────────────────
 SPARK_N   = 60
 UPDATE_MS = 2000
@@ -140,6 +149,13 @@ class PanelWindow(Gtk.Window):
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # Overlay scrollbars fade out until you hover, which on a panel nobody
+        # hovers over means content below the fold is invisible AND unmarked:
+        # at 1440 px the left panel's chassis section is cut off mid-row and
+        # nothing on screen says so. A panel read at a glance has to admit when
+        # it is not showing everything. AUTOMATIC still means no gutter at all
+        # when it all fits, so the cost is paid only when there is more to see.
+        scroll.set_overlay_scrolling(False)
         self.add(scroll)
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.box.set_margin_start(8)

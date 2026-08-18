@@ -123,7 +123,8 @@ def campaign():
         rc = None
         if os.path.exists(rs):
             try:
-                rc = json.load(open(rs)).get('returncode')
+                with open(rs) as fh:
+                    rc = json.load(fh).get('returncode')
             except Exception:
                 rc = None
         if rc not in (None, 0):
@@ -171,7 +172,8 @@ def recent_results(hours=24, limit=10):
         rs, rc, secs = f'{d}/.runner_status.json', None, None
         if os.path.exists(rs):
             try:
-                js = json.load(open(rs))
+                with open(rs) as fh:
+                    js = json.load(fh)
                 rc, secs = js.get('returncode'), js.get('seconds')
             except Exception:
                 pass
