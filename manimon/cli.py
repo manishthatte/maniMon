@@ -50,7 +50,11 @@ def _cmd_runs(a):
 
 def _cmd_sensors(a):
     from .sensors.daemon import main as daemon_main
-    return daemon_main(a.extra + (['--once'] if a.once else []))
+    argv = list(a.source)
+    for flag in ('once', 'print', 'force', 'show', 'preflight'):
+        if getattr(a, flag.replace('-', '_')):
+            argv.append(f'--{flag}')
+    return daemon_main(argv)
 
 
 def _cmd_health(a):
@@ -123,8 +127,21 @@ def build_parser():
     s.add_argument('--active', action='store_true', help='only runs still going')
 
     s = add('sensors', _cmd_sensors, 'privileged sensor sampler (root; the timer calls this)')
+    # Declared individually rather than swept up as positionals: argparse treats
+    # a leading -- as an option no matter what a positional says it accepts, so
+    # a catch-all silently rejected `--preflight` at the one moment it mattered
+    # — inside the installer, where nobody was watching the exit status.
     s.add_argument('--once', action='store_true', help='sample once and exit')
-    s.add_argument('extra', nargs='*', help='--print, --force, --show, --preflight, or source names')
+    s.add_argument('--print', action='store_true', dest='print',
+                   help='dump the sampled JSON to stdout')
+    s.add_argument('--force', action='store_true',
+                   help='ignore the per-source rate limit (hand-testing only)')
+    s.add_argument('--show', action='store_true',
+                   help='show what is currently published, without sampling')
+    s.add_argument('--preflight', action='store_true',
+                   help='report which sensors this machine can actually read')
+    s.add_argument('source', nargs='*',
+                   help='limit to these sources (ipmi, nvme, sata, dimms)')
 
     add('health', _cmd_health, 'dump what the privileged sampler published')
 
