@@ -16,6 +16,13 @@ MAX_DEVICES = 5
 # Mounts that always earn their own row; the rest collapse into a summary line
 ALWAYS_SHOW = {'/', '/home', '/tmp', '/var'}
 
+# Density levels at which this section sheds detail. The panel raises
+# p.density until the content fits the display; see PanelWindow._fit.
+D_QUIET_PARTS = 1      # near-empty system partitions -> one summary line
+D_FOLD_IDLE   = 2      # idle removable drives -> a single line each
+D_FOLD_SMART  = 3      # per-device SMART row -> hidden unless it says something
+D_NO_SPARK    = 6      # the I/O trend graph; the live rates above it stay
+
 
 def _notable(part, dev):
     """A partition worth a row of its own — everything else is noise at a glance."""
@@ -24,6 +31,41 @@ def _notable(part, dev):
             or part['pct'] >= 60
             or part['used'] >= 50 * 1024**3
             or (part['fstype'] == 'swap' and part['pct'] > 1))
+
+
+def _smart_is_quiet(sm):
+    """True when a drive's SMART row says nothing that is not already implied.
+
+    A healthy drive with plenty of life left contributes one row of reassurance.
+    Wear, defects or time spent over temperature are the reason the row exists,
+    and none of those may ever be folded away to win vertical space.
+    """
+    if not sm:
+        return True
+    life = sm.get('life_pct')
+    if isinstance(life, (int, float)) and life <= 25:
+        return False
+    if (sm.get('reallocated') or 0) + (sm.get('pending') or 0) \
+            + (sm.get('media_errors') or 0):
+        return False
+    if sm.get('crit_temp_time') or sm.get('healthy') is False:
+        return False
+    return True
+
+
+def _is_idle(dev, io, smart):
+    """A removable drive that is doing nothing and complaining about nothing.
+
+    Backup drives spend their lives like this — three of them cost 156 px of a
+    1440 px panel to say "0 B/s" — but one being written to is exactly when it
+    matters, so throughput un-folds it immediately.
+    """
+    if not dev['usb']:
+        return False
+    d = io.get(dev['dev'])
+    if d and (d['r_bps'] + d['w_bps']) > 65536:
+        return False
+    return _smart_is_quiet((smart or {}).get(dev['dev']))
 
 def build(p):
         # 5. Storage -----------------------------------------------------------
@@ -42,11 +84,37 @@ def build(p):
 def refresh(p, s):
     devs = s.get('disks') or []
     io = s.get('diskio') or {}
+    smart = s.get('smart') or {}
+    density = getattr(p, 'density', 0)
     total_parts = sum(len(d['parts']) for d in devs[:MAX_DEVICES])
     di = mi = 0
     for dev in devs[:MAX_DEVICES]:
         if di >= MAX_DEVICES:
             break
+
+        # A folded removable drive keeps the one thing worth knowing about a
+        # backup disk — how full it is — and gives up its I/O and SMART rows
+        # and its partition row: four lines become one.
+        if density >= D_FOLD_IDLE and _is_idle(dev, io, smart):
+            pt = (dev['parts'] or [None])[0]
+            t = dev.get('temp')
+            fill = (f'<span font="{FXS}" foreground="{DIM}">  '
+                    f'{fmt_bytes(pt["used"])}/{fmt_bytes(pt["total"])}</span>'
+                    f'<span font="{FXS}" foreground="{W.status_color(pt["pct"])}">'
+                    f'  {pt["pct"]:.0f}%</span>') if pt else ''
+            p.L(f"dev{di}",
+                f'<span font="{FB}" foreground="{CYAN}">⏏ '
+                f'{(pt["label"] if pt and pt["label"] else dev["dev"])}</span>'
+                + fill +
+                f'<span font="{FXS}" foreground="{DIM}">  idle'
+                + (f'  {t:.0f}°C' if t else '') + '</span>')
+            p.vis(f"dev{di}", True)
+            p.vis(f"devio{di}", False)
+            p.vis(f"devsmart{di}", False)
+            p.vis(f"devq{di}", False)
+            di += 1
+            continue
+
         kind = 'USB' if dev['usb'] else ('HDD' if dev['rotational'] else 'SSD')
         icon = '⏏' if dev['usb'] else '◈'
         t = dev.get('temp')
@@ -74,7 +142,9 @@ def refresh(p, s):
         # SMART: wear, written volume and defect counters. The panel used
         # to show only capacity and temperature, which says nothing about
         # whether the drive is dying.
-        sm = (s.get('smart') or {}).get(dev['dev'])
+        sm = smart.get(dev['dev'])
+        if density >= D_FOLD_SMART and _smart_is_quiet(sm):
+            sm = None                     # healthy and unworn: the row says nothing
         if sm:
             bits = []
             life = sm.get('life_pct')
@@ -113,7 +183,12 @@ def refresh(p, s):
         p.vis(f"devio{di}", True)
         di += 1
 
-        if total_parts <= MAX_MOUNTS:
+        # MAX_MOUNTS used to do two jobs — the hard row cap AND the decision to
+        # collapse — so with 11 partitions against a cap of 15 the collapse
+        # never engaged, and eleven rows stayed on a panel that had room for
+        # eight. The cap is still the cap; whether to collapse is now the
+        # panel's height talking.
+        if density < D_QUIET_PARTS and total_parts <= MAX_MOUNTS:
             shown, quiet = dev['parts'], []          # they all fit — show all
         else:
             shown = [pt for pt in dev['parts'] if _notable(pt, dev)]
@@ -164,6 +239,7 @@ def refresh(p, s):
            f'<span font="{FS}" foreground="{W.CAT[0]}">↓ {fmt_rate(rd)}</span>'
            f'<span font="{FS}" foreground="{W.CAT[1]}">   ↑ {fmt_rate(wr)}</span>'
            f'<span font="{FXS}" foreground="{DIM}">   {who}</span>')
+    p.vis("io_spark", density < D_NO_SPARK)
     sp = p._wid.get("io_spark")
     if sp:
         sp.push(rd, wr)

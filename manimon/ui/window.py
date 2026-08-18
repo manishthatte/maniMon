@@ -48,8 +48,6 @@ FXS  = f"{FONT} 11"        # small — still a reading size, not a caption size
 FG_  = f"{FONT} 12"        # GPU column
 FATT = f"{FONT} 13"        # attention queue  — the panel's headline content
 FATB = f"{FONT} Bold 13"
-FCLK = f"{FONT} Bold 30"   # clock digits (left panel)
-FDAT = f"{FONT} 13"        # clock date   (left panel)
 
 def _rgb(h):
     return int(h[1:3],16)/255, int(h[3:5],16)/255, int(h[5:7],16)/255
@@ -164,6 +162,15 @@ class PanelWindow(Gtk.Window):
         self.box.set_margin_bottom(6)
         scroll.add(self.box)
 
+        # How much detail the sections may draw. Raised by _fit() until the
+        # content fits the display; 0 means everything fits and nothing is
+        # folded. Set before build(), because sections read it as they render.
+        self.density = 0
+        self._density_said = -1
+        self._h_at = {}            # density level -> content height last seen there
+        self._fit_avail = -1
+        self._fit_probed = 0.0
+
         self._lbs, self._brs, self._wid = {}, {}, {}
         self.connect("realize", self._on_realize)
         self._place()
@@ -234,11 +241,99 @@ class PanelWindow(Gtk.Window):
         if snap:
             try:
                 self.refresh(snap)
+                self._fit(snap)
             except Exception as e:
                 import traceback
                 print(f"refresh error: {e}", flush=True)
                 traceback.print_exc()
         return True
+
+    # ── fitting the content to the screen ─────────────────────────────────────
+    #
+    # The panel is as tall as the display and its content is not. At 1440 px
+    # this one ran 145 px over and the chassis section was cut off mid-row; at
+    # 1080 px — an ordinary laptop — the same content overruns by 505 px, so
+    # five whole sections would be below the fold on a fresh install. A layout
+    # hand-tuned to one monitor is not a layout.
+    #
+    # So the panel asks GTK how tall its content actually is and raises a
+    # DENSITY level until it fits. Sections read `p.density` and shed detail in
+    # a fixed, published order — quiet partitions first, then idle removable
+    # drives, then per-device SMART rows, then the CPU heat map, then the
+    # chassis and power detail. Nothing is dropped silently: every fold leaves
+    # a line saying what it stands for, and each section's fold predicate
+    # re-expands the moment the thing it hid becomes worth looking at.
+    #
+    # Hysteresis matters more than it looks. Folding changes the height, which
+    # changes the decision, which would oscillate once per tick forever — one
+    # fold flickering on and off is worse than either state. A level is only
+    # given back when the content would fit with SLACK px to spare.
+    DENSITY_MAX = 6
+    REPROBE = 300.0     # s — how often a stale "would not fit" belief is retested
+
+    def _content_height(self):
+        """Natural height of everything in the box, folded or not."""
+        return sum(k.get_preferred_height()[1]
+                   for k in self.box.get_children() if k.get_visible())
+
+    def _available_height(self):
+        alloc = self.get_allocated_height()
+        if alloc <= 1:                       # not yet mapped
+            alloc = Gdk.Screen.get_default().get_height() - self.TOP_OFFSET
+        # The box's own margins are outside the children's preferred heights.
+        return alloc - self.box.get_margin_top() - self.box.get_margin_bottom()
+
+    def _fit(self, snap):
+        """Raise or lower the density until the content fits, without flapping.
+
+        Un-folding is decided on a MEASURED height, not on spare pixels. The
+        first attempt used "un-fold if there are more than 40 px to spare",
+        which flapped once a second between levels 1 and 2 forever: level 2 fit
+        with 44 px spare, so it un-folded to level 1, which is 144 px taller,
+        so it folded again. Slack cannot work — the threshold would have to be
+        larger than the fold it is about to undo, and every fold is a different
+        size.
+
+        So the height last seen at each level is remembered, and a level is
+        given back only when THAT number fits. Heights drift as partitions fill
+        and drives come and go, so a belief older than REPROBE is discarded and
+        measured again.
+        """
+        if self.DENSITY_MAX <= 0:
+            return
+        avail = self._available_height()
+        now = time.monotonic()
+        if avail != self._fit_avail or now - self._fit_probed > self.REPROBE:
+            self._h_at.clear()                       # screen changed, or stale
+            self._fit_avail = avail
+            self._fit_probed = now
+
+        # Each level is measured at most once per call, so twice the ladder is
+        # a generous ceiling: climb, plus one probe back down that fails.
+        for _ in range(2 * self.DENSITY_MAX + 2):    # bounded, never a while True
+            h = self._content_height()
+            self._h_at[self.density] = h
+            if h > avail and self.density < self.DENSITY_MAX:
+                self.density += 1
+            elif self.density > 0 and self._h_at.get(self.density - 1, 0) <= avail:
+                # Default 0 = "never measured, so go and measure it". Defaulting
+                # the other way — assume it would not fit — made REPROBE inert:
+                # clearing the cache left every level below looking impossible,
+                # so a panel that had folded could never unfold again however
+                # much its content shrank. An unknown level costs one extra
+                # measurement, inside this same loop, and is then known.
+                self.density -= 1
+            else:
+                break
+            self.refresh(snap)
+            while Gtk.events_pending():              # let the new sizes settle
+                Gtk.main_iteration_do(False)
+
+        if self.density != self._density_said:
+            self._density_said = self.density
+            print(f"{self.ANCHOR} panel: density {self.density} "
+                  f"({self._h_at.get(self.density)} px of {avail} available)",
+                  flush=True)
 
     # ── subclass hooks ────────────────────────────────────────────────────────
     def build(self):
@@ -356,7 +451,6 @@ __all__ = [
     'PURPLE', 'LIME', 'GOLD', 'TEAL', 'ROSE', 'DIM', 'DIM2', 'DIM3', 'WHITE',
     # fonts
     'FONT', 'FT', 'FH', 'FB', 'F', 'FS', 'FXS', 'FG_', 'FATT', 'FATB',
-    'FCLK', 'FDAT',
     # colour helpers
     '_rgb', '_rgba',
     # cairo

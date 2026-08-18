@@ -9,6 +9,13 @@ from .. import widgets as W
 from ..window import *   # noqa: F401,F403
 from ...util import fmt_bytes, fmt_rate, fmt_elapsed
 
+# Density level at which the two history sparklines and the temperature legend
+# go. The current readings — which are what this section is for — stay; the
+# trends are recoverable from `manimon report`, and the panel keeps its numbers
+# rather than its decoration. See PanelWindow._fit.
+D_NO_SPARKS = 5
+
+
 def build(p):
         # 7. Thermal & power --------------------------------------------------
         p.head("⚡", "THERMAL  &  POWER", GOLD)
@@ -24,6 +31,10 @@ def build(p):
 
 
 def refresh(p, s):
+    lean = getattr(p, 'density', 0) >= D_NO_SPARKS
+    for k in ("temp_spark", "temp_legend", "pwr_spark"):
+        p.vis(k, not lean)
+
     c = s.get('cpu') or {}
     gpus = s.get('gpus') or []
     disks = s.get('disks') or []

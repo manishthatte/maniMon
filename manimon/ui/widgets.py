@@ -127,6 +127,28 @@ class HeatGrid(Gtk.DrawingArea):
         self._vals = list(vals)
         self.queue_draw()
 
+    def reshape(self, cols, rows, cell=None, order=None):
+        """Re-lay the same threads into a different rectangle.
+
+        64 threads as 8x8 at 21 px is 182 px tall and the single largest block
+        on the left panel. The same 64 as 16x4 is 90 px and reads just as well —
+        SMT siblings stay adjacent either way. This is what the panel reaches
+        for when it has to fit a shorter display, rather than dropping the
+        section entirely.
+        """
+        if (cols, rows, cell or self.cell) == (self.cols, self.rows, self.cell):
+            return False
+        self.cols, self.rows = cols, rows
+        if cell:
+            self.cell = cell
+        if order is not None:
+            self.order = order
+        c, g = self.cell, self.GAP
+        self.set_size_request(cols * c + (cols - 1) * g,
+                              rows * c + (rows - 1) * g)
+        self.queue_draw()
+        return True
+
     def _draw(self, w, cr):
         c, g = self.cell, self.GAP
         for r in range(self.rows):

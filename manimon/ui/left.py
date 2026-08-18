@@ -4,7 +4,7 @@ maniMon — LEFT PANEL: the machine.
 
 Every hardware subsystem, at a glance, top to bottom in glance-frequency order:
 
-  Clock + PSI pressure · CPU (64-thread heat map) · GPU · Memory ·
+  PSI pressure · CPU (64-thread heat map) · GPU · Memory ·
   Storage (every disk and partition, + I/O trend) · Thermal & power
 
 NETWORK lives on the RIGHT panel: at 1440 px tall this one could not hold it
@@ -29,12 +29,12 @@ import time
 
 from .window import *                   # noqa: F401,F403
 from . import widgets as W
-from .sections import (left_clock, left_cpu, left_gpu, left_memory,
+from .sections import (left_pressure, left_cpu, left_gpu, left_memory,
                        left_storage, left_chassis, left_power, left_footer)
 
 # Order is glance frequency, not hardware hierarchy: the things looked at most
 # often sit highest, where they can be read without moving your eyes.
-SECTIONS = (left_clock, left_cpu, left_gpu, left_memory,
+SECTIONS = (left_pressure, left_cpu, left_gpu, left_memory,
             left_storage, left_chassis, left_power, left_footer)
 
 

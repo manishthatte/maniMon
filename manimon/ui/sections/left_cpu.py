@@ -10,6 +10,13 @@ from ..window import *   # noqa: F401,F403
 from ..markup import kv
 from ...util import fmt_bytes, fmt_rate, fmt_elapsed
 
+# Density level at which the heat map goes wide-and-short and its legend and
+# boost-bin row drop. See PanelWindow._fit.
+D_COMPACT_GRID = 4
+# Last thing to go before any actual reading is dropped: the history sparkline.
+# The trend is in `manimon report`; the number beside it is not anywhere else.
+D_NO_SPARK = 6
+
 def build(p):
         # 2. CPU --------------------------------------------------------------
         p.head("◈", "CPU  ·  EPYC 9334  32C / 64T", ORANGE)
@@ -34,6 +41,20 @@ def refresh(p, s):
     if not c:
         return
     per = c.get('per_cpu', [])
+
+    # Density 4: the heat map is the tallest single block on the panel. Laid
+    # out wide instead of square it costs 90 px rather than 182 and loses
+    # nothing — SMT siblings are still adjacent. The legend and the boost-bin
+    # row go with it; both explain the grid rather than report anything.
+    density = getattr(p, 'density', 0)
+    compact = density >= D_COMPACT_GRID
+    n = len(per) or 64
+    cols = max(8, -(-n // 4)) if compact else 8
+    p.grid.reshape(cols, -(-n // cols))
+    p.vis("cpu_legend", not compact)
+    p.vis("cpu_bins", not compact)
+    p.vis("cpu_spark", density < D_NO_SPARK)
+
     p.grid.set_values(per)
     agg = c.get('agg', {})
     tot = agg.get('total', 0.0)
