@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+title: >-
+  maniMon: a workstation monitor with persistent statistics
+  and honest per-run cost accounting
+message: If you use this software, please cite it as below.
+type: software
+authors:
+  - family-names: Thatte
+    given-names: Manish Jagdish
+    orcid: "https://orcid.org/0009-0003-8050-1242"
+    affiliation: maniTLab, Nashik, Maharashtra, India
+    email: manish@manitlab.org
+repository-code: "https://github.com/manishthatte/maniMon"
+url: "https://www.manitlab.org"
+abstract: >-
+  A Linux workstation monitor for machines that run long jobs.
+  It reads sensors most monitors do not — the amdgpu gpu_metrics
+  binary sysfs structure, the BMC over IPMI, SMART, ECC counters
+  and the DIMM channel inventory — and keeps the history in a
+  multi-resolution store rather than in per-process ring buffers
+  that vanish on restart. Per-run accounting separates quantities
+  measured per process, which are genuinely attributable, from
+  machine-wide quantities such as GPU power, which are reported
+  with their observed concurrency rather than divided between
+  overlapping runs.
+keywords:
+  - system monitoring
+  - amdgpu
+  - IPMI
+  - SMART
+  - energy accounting
+  - time series
+  - Linux
+license: AGPL-3.0-or-later
+version: 0.1.0

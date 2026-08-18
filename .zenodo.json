@@ -1,0 +1,48 @@
+{
+  "title": "maniMon: a workstation monitor with persistent statistics and honest per-run cost accounting",
+  "version": "0.1.0",
+  "upload_type": "software",
+  "license": "AGPL-3.0-or-later",
+  "access_right": "open",
+  "language": "eng",
+  "creators": [
+    {
+      "name": "Thatte, Manish Jagdish",
+      "affiliation": "maniTLab, Nashik, Maharashtra, India",
+      "orcid": "0009-0003-8050-1242"
+    }
+  ],
+  "description": "<p><strong>maniMon</strong> is a Linux workstation monitor for machines that run long jobs. Two docked GTK panels, a headless recorder, and a small privileged sensor sampler.</p><p>It exists because the usual answer to <em>\"how hot did the GPU get during last night's run, and what did it cost in watt-hours\"</em> is that nobody kept the data: sparklines in a system monitor are ring buffers inside a process, and restarting the process erases the history.</p><p><strong>Sensors most monitors do not read.</strong> The amdgpu <code>gpu_metrics</code> binary v1_3 sysfs structure, giving the three voltage-regulator temperatures, the throttle status word, and average versus current clocks &mdash; none of which appear in hwmon. Struct offsets were determined empirically from live bytes on an RDNA 3 card and cross-checked field by field against independent hwmon readings, rather than taken from a header. Also the BMC via IPMI (chassis fans, board and per-DIMM temperatures and power, rails), SMART for NVMe and SATA, ECC counters, PSI pressure, RAPL package power, and the DIMM inventory from DMI &mdash; the last of these showing which memory channels are populated, and therefore how much of the controller's bandwidth is actually reachable.</p><p><strong>Persistent statistics.</strong> A SQLite store with three resolutions folded by age (10 s for 48 h, 1 min for 30 days, 10 min indefinitely), roughly 400 MB per year with retention enforced on every fold. Rates are averaged when downsampled; temperatures and power take the maximum, because averaging a thermal peak away defeats the purpose of keeping history. This yields dated peaks, p95, energy in watt-hours by trapezoid integration with gap detection, and the fraction of time spent above a named threshold.</p><p><strong>Per-run accounting, and what it refuses to claim.</strong> Exclusive quantities &mdash; CPU-seconds, peak resident memory, peak thread count, wall time &mdash; are measured from each process's own counters and are genuinely attributable to a run even when runs overlap. Shared quantities &mdash; GPU power and energy, junction temperature, package watts &mdash; are machine-wide and are deliberately never divided between concurrent runs: one GPU feeding three jobs draws one board power, and splitting it three ways would invent a number no sensor measured. Shared figures are instead reported alongside the peak concurrency observed during the run's window.</p><p><strong>Honesty about units.</strong> SMART attribute 241 is vendor-defined: drives count 512-byte LBAs, 32 MiB chunks, or whole gibibytes under the same identifier, and some report a unit-free count while still naming the attribute Total_LBAs_Written. Read one such drive as LBAs and it claims three megabytes written across 3420 power-on hours. maniMon therefore publishes the raw counter together with the attribute name and derives a byte figure only where the unit is established, marking inferred values as approximate. Attribute 194 receives the same treatment: its raw field packs current, minimum and maximum temperature into one integer, which is how monitors come to report a disk at 210 billion degrees.</p><p><strong>Privilege.</strong> The panels never run as root. A single auditable script runs as root on a timer and writes world-readable JSON into a tmpfs directory; the panels read files and never gain privilege.</p><p>Colour palettes for light and dark themes are measured rather than eyeballed: contrast ratios are checked against WCAG by a runnable self-test, and categorical colours are validated under simulated protanopia, deuteranopia and tritanopia.</p><p>Licensed under AGPL-3.0-or-later, with a commercial licence available.</p>",
+  "keywords": [
+    "system monitoring",
+    "performance monitoring",
+    "amdgpu",
+    "ROCm",
+    "gpu_metrics",
+    "IPMI",
+    "BMC",
+    "SMART",
+    "S.M.A.R.T.",
+    "NVMe",
+    "telemetry",
+    "time series",
+    "SQLite",
+    "energy accounting",
+    "thermal monitoring",
+    "high performance computing",
+    "workstation",
+    "GTK",
+    "Linux",
+    "accessibility",
+    "colour vision deficiency"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/manishthatte/maniMon",
+      "relation": "isSupplementTo",
+      "resource_type": "software",
+      "scheme": "url"
+    }
+  ],
+  "notes": "maniMon is a system monitoring tool. It contains no part of, and discloses nothing about, the photonic-ternary hardware or software covered by the author's patent applications, and is published independently of those works."
+}
