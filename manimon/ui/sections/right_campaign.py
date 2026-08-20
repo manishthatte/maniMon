@@ -9,12 +9,12 @@ import time
 
 from .. import widgets as W
 from ..window import *   # noqa: F401,F403
-from ...config import LAYERS
+from ...config import CAMPAIGN_LABEL, LAYERS
 
 
 def build(p):
         # 4. Campaign -----------------------------------------------------------
-        p.head("◈", "PHASE 3  CAMPAIGN", PURPLE)
+        p.head("◈", CAMPAIGN_LABEL, PURPLE)
         p.lbl("camp_hdr")
         p.wid("camp_legend", Gtk.DrawingArea())
         p._wid["camp_legend"].set_size_request(-1, 14)
@@ -72,15 +72,25 @@ def refresh(p, s):
             f'<span font="{FXS}" foreground="{DIM}">{row["confirmed"]}'
             f'+{row["partial"]}/{n}</span>{flag}')
     failed = c.get('failed', 0)
-    p.L("camp_foot",
-           (f'<span font="{FXS}" foreground="{W.CRIT}">  {failed} recorded '
-            f'failure(s)</span>' if failed else
-            f'<span font="{FXS}" foreground="{DIM}">  ⚠ = ledger credits it, '
-            f'disk has nothing</span>'))
+    if failed:
+        foot = (f'<span font="{FXS}" foreground="{W.CRIT}">  {failed} recorded '
+                f'failure(s)</span>')
+    elif c.get('have_ledger'):
+        foot = (f'<span font="{FXS}" foreground="{DIM}">  ⚠ = ledger credits it, '
+                f'disk has nothing</span>')
+    else:
+        # No scoreboard to check disk against. Say so — an unlabelled bar here
+        # reads as "confirmed", which is a stronger claim than runs on disk.
+        foot = (f'<span font="{FXS}" foreground="{DIM}">  no ledger — bars are '
+                f'runs on disk, not confirmations</span>')
+    p.L("camp_foot", foot)
 
 
 def draw_legend(p, widget, cr):
-    W.legend(cr, 26, widget.get_allocation().height / 2, [
-        (W.CAT[0], "confirmed"), (W.CAT[1], "partial"), (None, "pending"),
-    ])
+    have = bool(((getattr(p, 'snap', None) or {}).get('campaign')
+                 or {}).get('have_ledger'))
+    W.legend(cr, 26, widget.get_allocation().height / 2,
+             [(W.CAT[0], "confirmed"), (W.CAT[1], "partial"), (None, "pending")]
+             if have else
+             [(W.CAT[0], "ran"), (None, "no artefacts")])
     return True

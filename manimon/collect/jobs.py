@@ -5,7 +5,8 @@ tmux sessions, and an optional campaign of batch runs on disk.
 import os, re, glob, json, time
 
 from ..util import rf, sh
-from ..config import CAMPAIGN_ROOT, LAYERS
+from ..config import (CAMPAIGN_ROOT, CAMPAIGN_RUNS, CAMPAIGN_STATUS,
+                      LAYERS)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -90,13 +91,14 @@ def campaign():
     totals = {'scripts': 0, 'confirmed': 0, 'partial': 0, 'pending': 0}
     if not CAMPAIGN_ROOT:                      # no campaign configured: hide the section
         return {}
-    status_md = f'{CAMPAIGN_ROOT}/STATUS.md'
+    runs_dir = f'{CAMPAIGN_ROOT}/{CAMPAIGN_RUNS}'
+    status_md = f'{CAMPAIGN_ROOT}/{CAMPAIGN_STATUS}' if CAMPAIGN_STATUS else ''
     num = r'\s*\**(\d+)\**\s*'
     row = re.compile(r'^\|\s*\**(L\d)\**[^|]*\|' + num + r'\|' + num +
                      r'\|' + num + r'\|' + num + r'\|')
     tot = re.compile(r'^\|\s*\**Total\**\s*\|' + num + r'\|' + num +
                      r'\|' + num + r'\|' + num + r'\|', re.I)
-    for line in rf(status_md).split('\n'):
+    for line in (rf(status_md) if status_md else '').split('\n'):
         line = line.strip()
         m = row.match(line)
         if m:
@@ -111,12 +113,13 @@ def campaign():
                       'partial': g[2], 'pending': g[3]}
 
     # Execution evidence from the output tree
-    ran, failed, failed_ids = {}, 0, []
-    for d in sorted(glob.glob(f'{CAMPAIGN_ROOT}/output/*')):
+    ran, seen, failed, failed_ids = {}, {}, 0, []
+    for d in sorted(glob.glob(f'{runs_dir}/*')):
         if not os.path.isdir(d):
             continue
         sim = os.path.basename(d)
         lay = sim[:2].upper().replace('_', '')
+        seen[lay] = seen.get(lay, 0) + 1
         # Any real output file counts: engines emit .dat/.json/.log/.png/.csv
         artefacts = [f for f in glob.glob(f'{d}/*') if os.path.isfile(f)]
         rs = f'{d}/.runner_status.json'
@@ -133,10 +136,18 @@ def campaign():
         if artefacts:
             ran[lay] = ran.get(lay, 0) + 1
 
+    # A scoreboard is optional. Without one there is nothing to compare disk
+    # against, so the bars report execution evidence alone — runs found, and
+    # how many of them left artefacts behind. That is a weaker statement than
+    # "confirmed", and the panel footer says which of the two is on screen
+    # rather than letting the stronger reading be assumed.
+    have_ledger = bool(ledger)
     out = []
     for lay in LAYERS:
-        led = ledger.get(lay, {'scripts': 0, 'confirmed': 0,
-                               'partial': 0, 'pending': 0})
+        fallback = {'scripts': seen.get(lay, 0), 'confirmed': ran.get(lay, 0),
+                    'partial': 0, 'pending': max(0, seen.get(lay, 0) - ran.get(lay, 0))}
+        led = ledger.get(lay, fallback if not have_ledger else
+                         {'scripts': 0, 'confirmed': 0, 'partial': 0, 'pending': 0})
         out.append({
             'layer': lay,
             'scripts': led['scripts'],
@@ -144,8 +155,10 @@ def campaign():
             'partial': led['partial'],
             'pending': led['pending'],
             'ran': ran.get(lay, 0),
-            # genuine inconsistency: ledger claims results, disk has nothing
-            'unbacked': led['confirmed'] + led['partial'] > 0 and ran.get(lay, 0) == 0,
+            # genuine inconsistency: ledger claims results, disk has nothing.
+            # Meaningless without a ledger — the two sides would be one source.
+            'unbacked': (have_ledger and led['confirmed'] + led['partial'] > 0
+                         and ran.get(lay, 0) == 0),
         })
     return {
         'layers': out,
@@ -156,6 +169,7 @@ def campaign():
         'ran': sum(ran.values()),
         'failed': failed,
         'failed_ids': failed_ids[:5],
+        'have_ledger': have_ledger,
     }
 
 
@@ -165,7 +179,7 @@ def recent_results(hours=24, limit=10):
         return []
     cutoff = time.time() - hours * 3600
     out = []
-    for d in glob.glob(f'{CAMPAIGN_ROOT}/output/*'):
+    for d in glob.glob(f'{CAMPAIGN_ROOT}/{CAMPAIGN_RUNS}/*'):
         if not os.path.isdir(d):
             continue
         sim = os.path.basename(d)

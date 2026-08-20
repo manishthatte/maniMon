@@ -77,10 +77,20 @@ DEFAULTS = {
         'jobs': [],                    # [{log, label, stale_days}]
     },
     'campaign': {
-        # A long-running study with a STATUS.md scoreboard and an output/
-        # directory of per-run folders. Entirely optional.
+        # A long-running study: a directory of per-run folders, optionally with
+        # a markdown scoreboard. Entirely optional.
         'root': None,
         'layers': [],
+        # The campaign has a name; this tool does not know it. Shown as the
+        # section heading. A hardcoded one lived here until 21 Aug 2026 and
+        # went on naming a campaign that had been retired a fortnight earlier.
+        'label': 'CAMPAIGN',
+        # Subdirectory of `root` holding one directory per run.
+        'results_dir': 'output',
+        # Markdown scoreboard, relative to `root`. Having none is normal and
+        # not a fault: without one the section reports what is on disk rather
+        # than what a ledger claims, which is the weaker but honest reading.
+        'status_file': 'STATUS.md',
     },
     'venvs': [],                       # python venvs to report versions from
 
@@ -214,8 +224,11 @@ REPO_PATH     = CFG['repo'].get('path')
 BACKUP_DIR    = CFG['backups'].get('log_dir')
 BACKUP_JOBS   = [(j['log'], j['label'], j.get('stale_days', 7))
                  for j in CFG['backups'].get('jobs', [])]
-CAMPAIGN_ROOT = CFG['campaign'].get('root')
-LAYERS        = list(CFG['campaign'].get('layers') or [])
+CAMPAIGN_ROOT   = CFG['campaign'].get('root')
+CAMPAIGN_LABEL  = CFG['campaign'].get('label') or 'CAMPAIGN'
+CAMPAIGN_RUNS   = CFG['campaign'].get('results_dir') or 'output'
+CAMPAIGN_STATUS = CFG['campaign'].get('status_file') or ''
+LAYERS          = list(CFG['campaign'].get('layers') or [])
 VENVS         = [os.path.expanduser(v) for v in CFG.get('venvs', [])]
 LIMITS        = CFG['limits']
 CPU_CHANNELS  = CFG['memory'].get('cpu_channels')
@@ -249,10 +262,17 @@ jobs = [
 ]
 
 [campaign]
-# A long study with a STATUS.md scoreboard and an output/ directory.
-# Leave root unset and the campaign section disappears from the panel.
+# A long study: an output/ directory of per-run folders, optionally with a
+# markdown scoreboard. Leave root unset and the section disappears entirely.
 root   = "~/work/campaign"
 layers = ["L0", "L1", "L2"]
+# Section heading — name your campaign, the tool will not guess.
+label  = "CAMPAIGN"
+# Where the per-run directories live, relative to root.
+results_dir = "output"
+# Optional markdown scoreboard. Omit it and the bars report runs found on
+# disk instead of a ledger's claims.
+status_file = "STATUS.md"
 
 [limits]
 gpu_junction = 85
